@@ -6,208 +6,49 @@
 ## 使用方法
 
 ### 1. 基础搜索
+调用内置的搜索脚本：
+
 ```bash
-# 使用 arXiv API 搜索论文
-python3 << 'EOF'
-import urllib.request
-import urllib.parse
-import xml.etree.ElementTree as ET
-import json
-from datetime import datetime
-
-def search_arxiv(query, max_results=30):
-    """搜索 arXiv 论文"""
-    base_url = "http://export.arxiv.org/api/query?"
-    search_query = f"search_query=all:{urllib.parse.quote(query)}"
-    url = base_url + search_query + f"&max_results={max_results}&sortBy=submittedDate&sortOrder=descending"
-    
-    response = urllib.request.urlopen(url)
-    xml_data = response.read().decode('utf-8')
-    
-    root = ET.fromstring(xml_data)
-    papers = []
-    
-    # 定义 arXiv namespace
-    ns = {'arxiv': 'http://arxiv.org/schemas/atom'}
-    
-    for entry in root.findall('{http://www.w3.org/2005/Atom}entry'):
-        paper = {
-            'id': entry.find('{http://www.w3.org/2005/Atom}id').text,
-            'title': entry.find('{http://www.w3.org/2005/Atom}title').text.strip(),
-            'summary': entry.find('{http://www.w3.org/2005/Atom}summary').text.strip(),
-            'published': entry.find('{http://www.w3.org/2005/Atom}published').text,
-            'updated': entry.find('{http://www.w3.org/2005/Atom}updated').text,
-            'authors': [author.find('{http://www.w3.org/2005/Atom}name').text 
-                       for author in entry.findall('{http://www.w3.org/2005/Atom}author')],
-            'categories': [cat.get('term') 
-                          for cat in entry.findall('{http://www.w3.org/2005/Atom}category')],
-            'pdf_url': None
-        }
-        
-        # 获取 PDF 链接
-        for link in entry.findall('{http://www.w3.org/2005/Atom}link'):
-            if link.get('title') == 'pdf':
-                paper['pdf_url'] = link.get('href')
-                break
-        
-        papers.append(paper)
-    
-    return papers
-
-# 示例搜索
-papers = search_arxiv("neural operator PDE", max_results=5)
-print(json.dumps(papers, indent=2, ensure_ascii=False))
-EOF
+# 搜索特定关键词的最新论文
+python skills/arxiv-search/scripts/search_arxiv.py --query "neural operator PDE" --limit 5
 ```
 
 ### 2. 批量关键词搜索（含去重机制）
+使用预设的高级查询进行批量搜索：
+
 ```bash
-# 多关键词批量搜索，自动去重
-python3 << 'EOF'
-import urllib.request
-import urllib.parse
-import xml.etree.ElementTree as ET
-import json
-import time
-import re
-from datetime import datetime
+# 使用预设关键词批量搜索，每个查询最多30篇
+python skills/arxiv-search/scripts/search_arxiv.py --batch --limit 30
 
-# 核心关键词：聚焦3D几何代理模型和PDE求解
-ADVANCED_QUERIES = [
-    "ti:geometry AND (ti:neural OR ti:operator OR ti:pde)",
-    "ti:mesh AND (ti:neural OR ti:deep OR ti:learning)",
-    "(ti:cfd OR ti:fluid) AND (ti:surrogate OR ti:neural OR ti:deep)",
-    "ti:3d AND (ti:pde OR ti:physics OR ti:solver)",
-    "(ti:fno OR ti:deeponet OR ti:\"neural operator\") AND (ti:geometry OR ti:mesh OR ti:domain)",
-    "(ti:pressure OR ti:stress OR ti:flow) AND (ti:neural OR ti:deep OR ti:surrogate)",
-    "(ti:aerodynamic OR ti:structural) AND (ti:surrogate OR ti:neural)"
-]
+# 批量搜索并输出相关性最高的 Top 10
+python skills/arxiv-search/scripts/search_arxiv.py --batch --limit 30 --top 10
 
-# 排除关键词：避免不相关领域
-EXCLUDE_KEYWORDS = [
-    "epidemic", "epidemiology", "disease modeling",
-    "population dynamics", "social network",
-    "finance", "economics",
-    "NLP", "language model", "text"
-]
-
-def normalize_title(title):
-    """标准化标题用于去重"""
-    title = title.lower()
-    # 保留版本标识符（++、-2、-3等），只移除其他标点
-    version_markers = re.findall(r'[\+\-]+\d*', title)
-    title = re.sub(r'[^\w\s\+\-]', '', title)
-    title = re.sub(r'\s+', ' ', title).strip()
-    return title
-
-def extract_arxiv_id(paper_id):
-    """从 arXiv URL 提取 ID"""
-    match = re.search(r'(\d{4}\.\d{4,5})', paper_id)
-    if match:
-        return match.group(1)
-    return paper_id
-
-def is_duplicate(paper, seen_ids, seen_titles, seen_normalized):
-    """检查论文是否重复"""
-    arxiv_id = extract_arxiv_id(paper['id'])
-    normalized_title = normalize_title(paper['title'])
-    
-    if arxiv_id in seen_ids:
-        return True, f"重复ID: {arxiv_id}"
-    
-    if paper['title'] in seen_titles:
-        return True, f"重复标题: {paper['title'][:50]}..."
-    
-    if normalized_title in seen_normalized:
-        return True, f"相似标题: {paper['title'][:50]}..."
-    
-    return False, None
-
-def search_arxiv(query, max_results=30):
-    base_url = "http://export.arxiv.org/api/query?"
-    search_query = f"search_query=all:{urllib.parse.quote(query)}"
-    url = base_url + search_query + f"&max_results={max_results}&sortBy=submittedDate&sortOrder=descending"
-    
-    try:
-        response = urllib.request.urlopen(url, timeout=30)
-        xml_data = response.read().decode('utf-8')
-        root = ET.fromstring(xml_data)
-        
-        papers = []
-        for entry in root.findall('{http://www.w3.org/2005/Atom}entry'):
-            paper = {
-                'id': entry.find('{http://www.w3.org/2005/Atom}id').text,
-                'title': entry.find('{http://www.w3.org/2005/Atom}title').text.strip(),
-                'summary': entry.find('{http://www.w3.org/2005/Atom}summary').text.strip()[:500],
-                'published': entry.find('{http://www.w3.org/2005/Atom}published').text,
-                'authors': [author.find('{http://www.w3.org/2005/Atom}name').text 
-                           for author in entry.findall('{http://www.w3.org/2005/Atom}author')],
-            }
-            
-            for link in entry.findall('{http://www.w3.org/2005/Atom}link'):
-                if link.get('title') == 'pdf':
-                    paper['pdf_url'] = link.get('href')
-                    break
-            
-            papers.append(paper)
-        
-        return papers
-    except Exception as e:
-        print(f"Error searching '{query}': {e}")
-        return []
-
-def deduplicate_papers(papers):
-    """去重并记录去重信息"""
-    seen_ids = set()
-    seen_titles = set()
-    seen_normalized = set()
-    
-    unique_papers = []
-    duplicates = []
-    
-    for paper in papers:
-        is_dup, reason = is_duplicate(paper, seen_ids, seen_titles, seen_normalized)
-        
-        if is_dup:
-            duplicates.append({
-                'title': paper['title'],
-                'id': paper['id'],
-                'reason': reason
-            })
-        else:
-            unique_papers.append(paper)
-            seen_ids.add(extract_arxiv_id(paper['id']))
-            seen_titles.add(paper['title'])
-            seen_normalized.add(normalize_title(paper['title']))
-    
-    return unique_papers, duplicates
-
-# 批量搜索
-all_papers = []
-for keyword in ADVANCED_QUERIES:
-    print(f"Searching: {keyword}")
-    papers = search_arxiv(keyword, max_results=30)
-    all_papers.extend(papers)
-    time.sleep(3)  # 避免请求过快
-
-print(f"\nTotal papers collected: {len(all_papers)}")
-
-# 去重
-unique_papers, duplicates = deduplicate_papers(all_papers)
-
-print(f"Unique papers after deduplication: {len(unique_papers)}")
-print(f"Duplicates removed: {len(duplicates)}")
-
-if duplicates:
-    print("\n=== Duplicates Removed ===")
-    for dup in duplicates[:10]:
-        print(f"- {dup['reason']}")
-        print(f"  Title: {dup['title'][:60]}...")
-
-print(f"\n=== Sample Unique Papers ===")
-print(json.dumps(unique_papers[:5], indent=2, ensure_ascii=False))
-EOF
+# 批量搜索并保存结果到文件
+python skills/arxiv-search/scripts/search_arxiv.py --batch --limit 30 --output search_results.json
 ```
+
+### 脚本功能说明
+
+`search_arxiv.py` 内置以下功能：
+
+| 功能 | 说明 |
+|------|------|
+| 去重机制 | 基于 arXiv ID + 标准化标题去重（保留版本标识符如 ++、-2） |
+| 排除过滤 | 自动排除不相关领域（流行病学、金融、NLP等） |
+| 相关性评分 | 基于关键词匹配自动评分排序 |
+| 批量搜索 | 预设 9 组高级查询覆盖核心研究方向 |
+
+### 命令行参数
+
+| 参数 | 说明 |
+|------|------|
+| `--query` | 搜索关键词 |
+| `--batch` | 使用预设关键词批量搜索 |
+| `--limit` | 每个查询的最大结果数（默认30） |
+| `--top` | 按相关性输出 Top N 论文 |
+| `--delay` | 批量搜索时的请求间隔秒数（默认3） |
+| `--output` | 输出 JSON 文件路径 |
+| `--verbose` | 显示详细信息（去重、排除详情） |
 
 ### 3. 下载论文 PDF
 ```bash

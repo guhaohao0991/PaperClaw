@@ -158,35 +158,27 @@ class WeeklyReportGenerator:
 ---"""
             paper_list.append(paper_entry)
         
-        # 生成评分表格（Top 5）- 从 scores.md 读取评分详情
+        # 生成评分表格（Top 5）- 优化：从 metadata.json 安全读取四维评分
         table_rows = []
         for paper in all_week_papers[:5]:
             short_title = paper.get('short_title', '')
-            scores_content = self.read_scores_file(short_title)
+            title = paper.get('title', 'Unknown')
+            if len(title) > 30:
+                title = title[:30] + "..."
             
             # 从 evaluated_papers.json 获取最终评分
             scores = paper.get('scores', {})
             final_score = scores.get('final_score', 0)
             
-            title = paper.get('title', 'Unknown')
-            if len(title) > 30:
-                title = title[:30] + "..."
-            
-            # 如果有 scores.md 内容，解析四维评分
-            if scores_content:
-                # 简单解析 scores.md 中的评分（假设格式为 "- 工程应用价值: X/10"）
-                import re
-                eng_match = re.search(r'工程应用价值:\s*(\d+(?:\.\d+)?)', scores_content)
-                arch_match = re.search(r'网络架构创新:\s*(\d+(?:\.\d+)?)', scores_content)
-                theo_match = re.search(r'理论贡献:\s*(\d+(?:\.\d+)?)', scores_content)
-                rel_match = re.search(r'结果可靠性:\s*(\d+(?:\.\d+)?)', scores_content)
-                imp_match = re.search(r'影响力评分:\s*(\d+(?:\.\d+)?)', scores_content)
-                
-                eng = eng_match.group(1) if eng_match else "N/A"
-                arch = arch_match.group(1) if arch_match else "N/A"
-                theo = theo_match.group(1) if theo_match else "N/A"
-                rel = rel_match.group(1) if rel_match else "N/A"
-                imp = imp_match.group(1) if imp_match else "N/A"
+            # 优化：从 metadata.json 安全读取四维评分，彻底废除脆弱的正则提取
+            metadata = self.read_metadata_file(short_title)
+            if metadata and 'scores' in metadata:
+                scores_data = metadata['scores']
+                eng = str(scores_data.get('engineering_value', 'N/A'))
+                arch = str(scores_data.get('architecture_innovation', 'N/A'))
+                theo = str(scores_data.get('theoretical_contribution', 'N/A'))
+                rel = str(scores_data.get('result_reliability', 'N/A'))
+                imp = str(scores_data.get('impact', 'N/A'))
             else:
                 eng = arch = theo = rel = imp = "N/A"
             

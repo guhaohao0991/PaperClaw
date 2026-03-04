@@ -1,0 +1,32 @@
+{
+  "schedules": [
+    {
+      "name": "Daily Paper Search",
+      "description": "每日 20:00 (Asia/Singapore) 自动检索论文并评估",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 20 * * *",
+        "tz": "Asia/Singapore"
+      },
+      "payload": {
+        "kind": "agentTurn",
+        "message": "执行每日论文检索任务：\n\n1. 首先运行搜索脚本：\n```bash\npython skills/daily-search/scripts/daily_paper_search.py --top 3\n```\n\n2. 查看待评估清单，获取今日精选的 3 篇论文\n\n3. 对每篇精选论文执行完整的 paper-review 流程：\n   - 通过 Semantic Scholar API 获取引用数据\n   - 阅读论文并撰写 summary.md\n   - 进行四维评分并撰写 scores.md（使用 <think> 标签记录推理）\n   - 将评分写入 metadata.json 的 scores 字段\n   - 使用 update_registry.py 更新 evaluated_papers.json\n\n4. 确认所有论文评估完成"
+      },
+      "sessionTarget": "isolated"
+    },
+    {
+      "name": "Weekly Report Generation",
+      "description": "每周日 10:00 (Asia/Singapore) 生成周报",
+      "schedule": {
+        "kind": "cron",
+        "expr": "0 10 * * 0",
+        "tz": "Asia/Singapore"
+      },
+      "payload": {
+        "kind": "agentTurn",
+        "message": "生成三维几何代理模型研究周报：\n\n1. 运行周报生成脚本：\n```bash\npython skills/weekly-report/scripts/generate_weekly_report_v2.py\n```\n\n2. 确认周报已保存到 weekly_reports/ 目录\n3. 确认知识库文档已创建\n4. 确认如流消息已发送给 guhaohao"
+      },
+      "sessionTarget": "isolated"
+    }
+  ]
+}

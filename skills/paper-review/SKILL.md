@@ -300,40 +300,29 @@ python skills/semantic-scholar/semantic_scholar_api.py paper-by-title "paper-tit
 
 ### 更新已评估论文列表
 
-评估完成后，**必须**更新 `evaluated_papers.json`：
+评估完成后，**必须**使用以下命令安全地更新 `evaluated_papers.json`（已处理并发锁和去重检查）：
 
 ```bash
-# 读取当前列表
-cat workspace/papers/evaluated_papers.json
-
-# 添加新论文记录
-python3 << 'EOF'
-import json
-from datetime import datetime
-
-# 读取现有数据
-with open('workspace/papers/evaluated_papers.json', 'r') as f:
-    data = json.load(f)
-
-# 添加新论文
-new_paper = {
-    "arxiv_id": "[arXiv ID]",
-    "title": "[论文标题]",
-    "short_title": "[简短标题]",
-    "final_score": [最终评分],
-    "evaluated_date": datetime.now().isoformat()
-}
-
-data["papers"].append(new_paper)
-data["last_updated"] = datetime.now().isoformat()
-
-# 保存更新后的数据
-with open('workspace/papers/evaluated_papers.json', 'w') as f:
-    json.dump(data, f, ensure_ascii=False, indent=2)
-
-print(f"已添加论文: {new_paper['title']}")
-EOF
+python skills/paper-review/scripts/update_registry.py \
+  --id "[arXiv ID]" \
+  --title "[完整论文标题]" \
+  --short_title "[简短标题]" \
+  --score "[最终评分]"
 ```
+
+**示例**：
+```bash
+python skills/paper-review/scripts/update_registry.py \
+  --id "2401.12345" \
+  --title "Geometry-Aware Neural Operator for 3D Mesh" \
+  --short_title "GANO-3D" \
+  --score "8.25"
+```
+
+**注意事项**：
+- 脚本会自动检查论文是否已存在（基于 arXiv ID 和标题去重）
+- 使用文件锁防止并发写入冲突
+- 如果论文已存在，会跳过并提示
 
 ## 评分标准详细说明
 
