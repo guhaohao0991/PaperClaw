@@ -11,8 +11,7 @@
 
 </div>
 
----
-
+[中文](README.md) | [English](README_EN.md)
 ## 🎯 项目定位
 
 PaperClaw 是一个**领域论文专家智能体生成框架**：
